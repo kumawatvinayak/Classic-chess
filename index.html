@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLASSIC CHESS</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#111827;
+    color:white;
+    font-family:Arial,sans-serif;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+.container{
+    display:flex;
+    gap:30px;
+    align-items:center;
+}
+
+#board{
+    width:640px;
+    height:640px;
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    border:8px solid white;
+    box-shadow:0 0 25px rgba(0,0,0,0.5);
+}
+
+.square{
+    width:80px;
+    height:80px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:58px;
+    cursor:pointer;
+    user-select:none;
+    transition:0.2s;
+}
+
+.white{
+    background:#f0d9b5;
+}
+
+.black{
+    background:#b58863;
+}
+
+/* WHITE PIECES */
+.white-piece{
+    color:white;
+    text-shadow:
+        -2px -2px 0 black,
+         2px -2px 0 black,
+        -2px  2px 0 black,
+         2px  2px 0 black;
+}
+
+/* BLACK PIECES */
+.black-piece{
+    color:black;
+}
+
+.selected{
+    box-shadow:inset 0 0 0 5px yellow;
+}
+
+.validMove{
+    background:#86efac !important;
+}
+
+.capture{
+    background:#f87171 !important;
+}
+
+.panel{
+    width:260px;
+    background:#1f2937;
+    padding:20px;
+    border-radius:20px;
+}
+
+.panel h1{
+    margin-top:0;
+}
+
+.info{
+    background:#374151;
+    padding:12px;
+    border-radius:12px;
+    margin-bottom:15px;
+}
+
+button{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:#2563eb;
+    color:white;
+    font-size:18px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#1d4ed8;
+}
+
+.moveLog{
+    margin-top:20px;
+    height:250px;
+    overflow-y:auto;
+    background:#0f172a;
+    border-radius:12px;
+    padding:10px;
+}
+
+.move{
+    padding:5px;
+    border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div id="board"></div>
+
+    <div class="panel">
+
+        <h1>♟ Classic Chess</h1>
+
+        <div class="info">
+            <strong>Turn:</strong>
+            <span id="turn">White</span>
+        </div>
+
+        <div class="info">
+            <strong>Status:</strong>
+            <span id="status">Game Started</span>
+        </div>
+
+        <button onclick="resetGame()">Restart Game</button>
+
+        <div class="moveLog" id="moveLog"></div>
+
+    </div>
+
+</div>
+
+<script>
+
+const board = document.getElementById("board");
+const turnText = document.getElementById("turn");
+const statusText = document.getElementById("status");
+const moveLog = document.getElementById("moveLog");
+
+const pieces = {
+    r:"♜", n:"♞", b:"♝", q:"♛", k:"♚", p:"♟",
+    R:"♖", N:"♘", B:"♗", Q:"♕", K:"♔", P:"♙"
+};
+
+let currentTurn = "white";
+let selectedSquare = null;
+
+let gameBoard = [
+["r","n","b","q","k","b","n","r"],
+["p","p","p","p","p","p","p","p"],
+["","","","","","","",""],
+["","","","","","","",""],
+["","","","","","","",""],
+["","","","","","","",""],
+["P","P","P","P","P","P","P","P"],
+["R","N","B","Q","K","B","N","R"]
+];
+
+function drawBoard(){
+
+    board.innerHTML = "";
+
+    for(let row=0; row<8; row++){
+
+        for(let col=0; col<8; col++){
+
+            const square = document.createElement("div");
+
+            square.classList.add("square");
+
+            if((row + col) % 2 === 0){
+                square.classList.add("white");
+            }else{
+                square.classList.add("black");
+            }
+
+            square.dataset.row = row;
+            square.dataset.col = col;
+
+            const piece = gameBoard[row][col];
+
+            if(piece){
+
+                const isWhite = piece === piece.toUpperCase();
+
+                square.innerHTML = `
+                    <span class="${isWhite ? 'white-piece' : 'black-piece'}">
+                        ${pieces[piece]}
+                    </span>
+                `;
+
+            }else{
+
+                square.innerHTML = "";
+
+            }
+
+            square.addEventListener("click", ()=>handleClick(row,col));
+
+            board.appendChild(square);
+        }
+    }
+}
+
+function handleClick(row,col){
+
+    const clickedPiece = gameBoard[row][col];
+
+    if(selectedSquare){
+
+        const fromRow = selectedSquare.row;
+        const fromCol = selectedSquare.col;
+
+        const selectedPiece = gameBoard[fromRow][fromCol];
+
+        if(isValidMove(selectedPiece,fromRow,fromCol,row,col)){
+
+            movePiece(fromRow,fromCol,row,col);
+
+            clearHighlights();
+
+            selectedSquare = null;
+
+            currentTurn =
+                currentTurn === "white"
+                ? "black"
+                : "white";
+
+            turnText.innerText =
+                currentTurn.charAt(0).toUpperCase()
+                + currentTurn.slice(1);
+
+            return;
+        }
+
+        clearHighlights();
+        selectedSquare = null;
+    }
+
+    if(clickedPiece){
+
+        if(
+            currentTurn === "white"
+            &&
+            clickedPiece === clickedPiece.toUpperCase()
+        ){
+
+            selectedSquare = {row,col};
+
+            highlightSquare(row,col);
+        }
+
+        if(
+            currentTurn === "black"
+            &&
+            clickedPiece === clickedPiece.toLowerCase()
+        ){
+
+            selectedSquare = {row,col};
+
+            highlightSquare(row,col);
+        }
+    }
+}
+
+function highlightSquare(row,col){
+
+    clearHighlights();
+
+    const squares = document.querySelectorAll(".square");
+
+    squares.forEach(square=>{
+
+        const r = parseInt(square.dataset.row);
+        const c = parseInt(square.dataset.col);
+
+        if(r===row && c===col){
+            square.classList.add("selected");
+        }
+
+        const piece = gameBoard[row][col];
+
+        if(isValidMove(piece,row,col,r,c)){
+
+            if(gameBoard[r][c]===""){
+                square.classList.add("validMove");
+            }else{
+                square.classList.add("capture");
+            }
+        }
+    });
+}
+
+function clearHighlights(){
+
+    document.querySelectorAll(".square").forEach(square=>{
+
+        square.classList.remove("selected");
+        square.classList.remove("validMove");
+        square.classList.remove("capture");
+
+    });
+}
+
+function isValidMove(piece,fromRow,fromCol,toRow,toCol){
+
+    if(fromRow===toRow && fromCol===toCol){
+        return false;
+    }
+
+    const target = gameBoard[toRow][toCol];
+
+    if(target){
+
+        const isWhitePiece =
+            piece === piece.toUpperCase();
+
+        const isTargetWhite =
+            target === target.toUpperCase();
+
+        if(isWhitePiece === isTargetWhite){
+            return false;
+        }
+    }
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+
+    switch(piece.toLowerCase()){
+
+        case "p":
+
+            const direction =
+                piece === "P" ? -1 : 1;
+
+            if(colDiff===0 && !target){
+
+                if(rowDiff===direction){
+                    return true;
+                }
+
+                if(
+                    (
+                        piece==="P" && fromRow===6
+                    )
+                    ||
+                    (
+                        piece==="p" && fromRow===1
+                    )
+                ){
+
+                    if(rowDiff===2*direction){
+                        return true;
+                    }
+                }
+            }
+
+            if(
+                Math.abs(colDiff)===1
+                &&
+                rowDiff===direction
+                &&
+                target
+            ){
+                return true;
+            }
+
+            break;
+
+        case "r":
+
+            if(
+                fromRow===toRow
+                ||
+                fromCol===toCol
+            ){
+                return true;
+            }
+
+            break;
+
+        case "n":
+
+            if(
+                (
+                    Math.abs(rowDiff)===2
+                    &&
+                    Math.abs(colDiff)===1
+                )
+                ||
+                (
+                    Math.abs(rowDiff)===1
+                    &&
+                    Math.abs(colDiff)===2
+                )
+            ){
+                return true;
+            }
+
+            break;
+
+        case "b":
+
+            if(
+                Math.abs(rowDiff)
+                ===
+                Math.abs(colDiff)
+            ){
+                return true;
+            }
+
+            break;
+
+        case "q":
+
+            if(
+                fromRow===toRow
+                ||
+                fromCol===toCol
+                ||
+                Math.abs(rowDiff)
+                ===
+                Math.abs(colDiff)
+            ){
+                return true;
+            }
+
+            break;
+
+        case "k":
+
+            if(
+                Math.abs(rowDiff)<=1
+                &&
+                Math.abs(colDiff)<=1
+            ){
+                return true;
+            }
+
+            break;
+    }
+
+    return false;
+}
+
+function movePiece(fromRow,fromCol,toRow,toCol){
+
+    const movingPiece =
+        gameBoard[fromRow][fromCol];
+
+    const captured =
+        gameBoard[toRow][toCol];
+
+    gameBoard[toRow][toCol] =
+        movingPiece;
+
+    gameBoard[fromRow][fromCol] = "";
+
+    drawBoard();
+
+    const moveText =
+        movingPiece
+        +
+        " : "
+        +
+        String.fromCharCode(97+fromCol)
+        +
+        (8-fromRow)
+        +
+        " ➜ "
+        +
+        String.fromCharCode(97+toCol)
+        +
+        (8-toRow);
+
+    addMove(moveText);
+
+    if(
+        captured
+        &&
+        captured.toLowerCase()==="k"
+    ){
+
+        statusText.innerText =
+            currentTurn.toUpperCase()
+            + " WINS!";
+
+        setTimeout(()=>{
+            alert(currentTurn.toUpperCase()+" WINS!");
+        },100);
+    }
+}
+
+function addMove(text){
+
+    const div = document.createElement("div");
+
+    div.classList.add("move");
+
+    div.innerText = text;
+
+    moveLog.prepend(div);
+}
+
+function resetGame(){
+
+    gameBoard = [
+    ["r","n","b","q","k","b","n","r"],
+    ["p","p","p","p","p","p","p","p"],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["P","P","P","P","P","P","P","P"],
+    ["R","N","B","Q","K","B","N","R"]
+    ];
+
+    currentTurn = "white";
+
+    turnText.innerText = "White";
+
+    statusText.innerText = "Game Started";
+
+    moveLog.innerHTML = "";
+
+    selectedSquare = null;
+
+    drawBoard();
+}
+
+drawBoard();
+
+</script>
+
+</body>
+</html>
